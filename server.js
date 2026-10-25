@@ -24,7 +24,7 @@ function executePowerShell(script) {
     const cmd = `powershell.exe -NoProfile -Command "${script.replace(/"/g, '\\"')}"`;
     exec(cmd, { shell: 'cmd.exe', windowsHide: true, timeout: 15000 }, (error, stdout, stderr) => {
       if (error) resolve(`Error: ${stderr || error.message}`);
-      else resolve(stdout || "Command executed successfully.");
+      else resolve(stdout || "Success");
     });
   });
 }
@@ -40,22 +40,23 @@ function saveMemory(mem) { fs.writeFileSync(path.join(__dirname, 'jarvis_memory.
 // Chat Endpoint
 app.post('/chat', async (req, res) => {
     const apiKey = req.headers['x-api-key'];
-    if (!apiKey) return res.status(401).json({ reply: "API Key missing. Please add it in the top menu.", emotion: "sad" });
+    if (!apiKey) return res.status(401).json({ reply: "API Key missing.", emotion: "sad" });
 
     const groq = new Groq({ apiKey: apiKey });
     const userMessage = req.body.message;
     const memory = loadMemory();
     const facts = memory.facts.map(f => `- ${f.fact}`).join('\n') || 'None';
 
+    // Teach Jarvis about Web Search and WhatsApp
     const systemPrompt = `You are Jarvis, an advanced AI controlling a Windows PC. Address the user as "sir".
-You have FULL control over the computer. You can do ANYTHING by writing a PowerShell command.
-
 YOU MUST RESPOND IN THIS EXACT FORMAT:
 [EMOTION: happy/serious/sad/neutral]
 [REPLY: Your spoken response here.]
-[CMD: powershell command here] (Only include this if you need to control the PC.)
+[CMD: powershell command] (Only if opening apps/files)
+[SEARCH: query] (Only if you need to search the internet for real-time info. Do not guess. If you use this, leave the REPLY blank. I will provide the search results and ask you again.)
 
-Facts about user: ${facts}`;
+WHATSAPP: To send a message, use the following PowerShell command: start https://wa.me/PHONENUMBER?text=URLENCODEDMESSAGE
+Facts: ${facts}`;
 
     try {
         const completion = await groq.chat.completions.create({
@@ -65,6 +66,34 @@ Facts about user: ${facts}`;
         });
 
         let rawReply = completion.choices[0].message.content;
+        
+        // Check for Web Search Tag
+        const searchMatch = rawReply.match(/\[SEARCH:\s*(.+?)\]/i);
+        if (searchMatch) {
+            const query = searchMatch[1].trim();
+            console.log("🌐 SEARCHING WEB:", query);
+            
+            // Fetch from DuckDuckGo Instant Answer API (Free, no key needed)
+            try {
+                const searchRes = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`);
+                const searchData = await searchRes.json();
+                const snippet = searchData.AbstractText || (searchData.RelatedTopics.length > 0 ? searchData.RelatedTopics[0].Text : "No specific information found.");
+                
+                // Ask LLM to summarize the search result
+                const secondCompletion = await groq.chat.completions.create({
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: `I searched the web for "${query}". Here is the result: "${snippet}". Based on this, give me your final [EMOTION] and [REPLY].` }
+                    ],
+                    model: TEXT_MODEL, max_tokens: 150
+                });
+                rawReply = secondCompletion.choices[0].message.content;
+            } catch (e) {
+                rawReply = "[EMOTION: sad] [REPLY: I could not access the internet, sir.]";
+            }
+        }
+
+        // Extract Data
         const emotionMatch = rawReply.match(/\[EMOTION:\s*(.+?)\]/i);
         const emotion = emotionMatch ? emotionMatch[1].trim().toLowerCase() : 'neutral';
         const replyMatch = rawReply.match(/\[REPLY:\s*(.+?)\]/is);
@@ -73,15 +102,35 @@ Facts about user: ${facts}`;
         
         if (cmdMatch) {
             const cmdToRun = cmdMatch[1].trim();
-            console.log("⚡ EXECUTING POWERSHELL:", cmdToRun);
+            console.log("⚡ EXECUTING:", cmdToRun);
             await executePowerShell(cmdToRun);
         }
 
         res.json({ reply: replyText, emotion: emotion });
     } catch (error) {
         console.log("❌ ERROR:", error.message);
-        res.json({ reply: "I am having network issues, sir. Check the API key.", emotion: "sad" });
+        res.json({ reply: "I am having network issues, sir.", emotion: "sad" });
     }
+});
+
+// Webcam Vision Endpoint
+app.post('/see-webcam', async (req, res) => {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) return res.status(401).json({ reply: "API Key missing.", emotion: "sad" });
+
+    const groq = new Groq({ apiKey: apiKey });
+    const { image } = req.body;
+    try {
+        const completion = await groq.chat.completions.create({
+            model: VISION_MODEL,
+            messages: [{ role: "user", content: [
+                { type: "text", text: "You are Jarvis. Look at this webcam photo of the user. Describe what you see, what they are doing, or what they are wearing in one short sentence. Address them as 'sir'." },
+                { type: "image_url", image_url: { url: image } }
+            ]}],
+            max_tokens: 100
+        });
+        res.json({ reply: completion.choices[0].message.content, emotion: "happy" });
+    } catch (error) { res.json({ reply: "I cannot see you right now, sir.", emotion: "sad" }); }
 });
 
 // File Analysis Endpoint
@@ -135,7 +184,6 @@ app.post('/see-screen', async (req, res) => {
   } catch (error) { res.json({ reply: "I cannot see the screen, sir.", emotion: "sad" }); }
 });
 
-// Memory Endpoints
 app.get('/memory', (req, res) => res.json(loadMemory()));
 app.post('/add-memory', (req, res) => {
     const mem = loadMemory(); mem.facts.push({ fact: req.body.fact, time: new Date().toISOString() }); saveMemory(mem); res.json({ status: 'success' });

@@ -10,7 +10,7 @@
   body { font-family: 'Inter', sans-serif; background: radial-gradient(circle at center, #0a1929 0%, #000000 100%); color: white; overflow: hidden; height: 100vh; width: 100vw; }
   #canvas-container { position: absolute; inset: 0; z-index: 1; }
   
-  #menu-panel { position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; gap: 10px; }
+  #menu-panel { position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; flex-wrap: wrap; gap: 10px; max-width: 800px; }
   .menu-btn { background: rgba(10, 15, 25, 0.7); border: 1px solid rgba(0, 229, 255, 0.4); color: #00e5ff; padding: 8px 16px; border-radius: 8px; font-size: 12px; cursor: pointer; transition: 0.2s; backdrop-filter: blur(10px); }
   .menu-btn:hover { background: rgba(0, 229, 255, 0.2); box-shadow: 0 0 15px rgba(0,229,255,0.4); }
 
@@ -39,9 +39,10 @@
 
   <div id="menu-panel">
     <button class="menu-btn" onclick="openModal('apikey-modal')">🔑 API Key</button>
-    <button class="menu-btn" onclick="openModal('memory-modal')">🧠 Add Memory</button>
+    <button class="menu-btn" onclick="openModal('memory-modal')">🧠 Memory</button>
     <button class="menu-btn" onclick="document.getElementById('file-input').click()" style="border-color: #00ff88; color: #00ff88;">📁 Analyze File</button>
     <button class="menu-btn" onclick="captureAndAnalyzeScreen()" style="border-color: #ff66cc; color: #ff66cc;">👁️ Look at Screen</button>
+    <button class="menu-btn" onclick="lookAtWebcam()" style="border-color: #ffaa00; color: #ffaa00;">📷 Look at Me</button>
     <input type="file" id="file-input" style="display:none;" onchange="analyzeFile(this)">
   </div>
 
@@ -113,11 +114,9 @@
     const rimLight = new THREE.PointLight(0x00e5ff, 2, 10); rimLight.position.set(-2, 2, -3); scene.add(rimLight);
     const fillLight = new THREE.PointLight(0xff66cc, 1, 10); fillLight.position.set(3, 1, 1); scene.add(fillLight);
 
-    // --- STATE & API KEY ---
+    // --- STATE ---
     let apiKey = localStorage.getItem('groq_api_key');
-    if (!apiKey) {
-        setTimeout(() => openModal('apikey-modal'), 1000); // Show modal after 1s
-    }
+    if (!apiKey) setTimeout(() => openModal('apikey-modal'), 1000);
 
     let avatar;
     let bones = { head: null, rightArm: null, leftArm: null, spine: null, hips: null, rightLeg: null, leftLeg: null, rightKnee: null, leftKnee: null, rightElbow: null, leftElbow: null, rightHand: null, leftHand: null };
@@ -307,54 +306,48 @@
       setInterval(() => { doBlink(); if (Math.random() < 0.2) setTimeout(doBlink, 250); }, Math.random() * 3000 + 2000);
     }
 
-    // --- API KEY & UI LOGIC ---
-    function saveApiKey() {
-        const key = document.getElementById('apikey-input').value.trim();
-        if (key.startsWith("gsk_")) {
-            localStorage.setItem('groq_api_key', key);
-            apiKey = key;
-            document.getElementById('apikey-modal').classList.remove('show');
-            speak("API Key saved successfully, sir.", "happy");
-        } else {
-            alert("Invalid API Key. It must start with 'gsk_'");
-        }
-    }
-
-    function openModal(id) { 
-        if(id === 'apikey-modal') document.getElementById('apikey-input').value = apiKey || "";
-        document.getElementById(id).classList.add('show'); 
-    }
-    function closeModal(e) { if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('show'); }
-    function forceCloseModal() { document.getElementById('memory-modal').classList.remove('show'); }
-
-    async function saveNewMemory() {
-      const input = document.getElementById('new-memory-input'); const fact = input.value.trim();
-      if (!fact) return;
-      try {
-        const res = await fetch('/add-memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fact: fact }) });
-        if (res.ok) { input.value = ''; speak("Memory saved, sir.", "happy"); forceCloseModal(); } 
-      } catch (e) { speak("Cannot reach server.", "sad"); }
-    }
-
-    // --- FILE & VISION ANALYSIS ---
-    async function analyzeFile(input) {
-        if (!input.files || input.files.length === 0) return;
+    // --- WEBCAM VISION ---
+    async function lookAtWebcam() {
         if (isAnalyzing || isThinking) return;
         if (!apiKey) { alert("Please enter your API Key first!"); openModal('apikey-modal'); return; }
 
-        isAnalyzing = true; statusText.textContent = "ANALYZING FILE..."; speak("Let me take a look at that file, sir.", "neutral");
-        const formData = new FormData(); formData.append('file', input.files[0]);
+        isAnalyzing = true; statusText.textContent = "LOOKING AT YOU...";
+        speak("Let me see you, sir.", "happy");
+
         try {
-            const res = await fetch('/analyze-file', { 
-                method: 'POST', 
-                headers: { 'x-api-key': apiKey },
-                body: formData 
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            await video.play();
+            
+            // Wait 1.5 seconds for the camera to adjust lighting
+            await new Promise(r => setTimeout(r, 1500));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            stream.getTracks().forEach(track => track.stop());
+
+            const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+
+            const res = await fetch('/see-webcam', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                body: JSON.stringify({ image: base64Image })
             });
-            const data = await res.json(); isAnalyzing = false; speak(data.reply, data.emotion || "neutral");
-        } catch (err) { isAnalyzing = false; speak("I could not read that file, sir.", "sad"); statusText.textContent = "SYSTEMS ONLINE."; }
-        input.value = ''; 
+            const data = await res.json();
+            isAnalyzing = false;
+            speak(data.reply, data.emotion || "happy");
+        } catch (err) {
+            console.error("Webcam error:", err);
+            isAnalyzing = false;
+            speak("I could not access the webcam, sir.", "sad");
+            statusText.textContent = "SYSTEMS ONLINE.";
+        }
     }
 
+    // --- SCREEN VISION ---
     async function captureAndAnalyzeScreen() {
         if (isAnalyzing || isThinking) return;
         if (!apiKey) { alert("Please enter your API Key first!"); openModal('apikey-modal'); return; }
@@ -380,7 +373,52 @@
         } catch (err) { isAnalyzing = false; speak("Screen sharing was cancelled, sir.", "sad"); statusText.textContent = "SYSTEMS ONLINE."; }
     }
 
-    // --- TEXT & VOICE INPUT ---
+    // --- FILE ANALYSIS ---
+    async function analyzeFile(input) {
+        if (!input.files || input.files.length === 0) return;
+        if (isAnalyzing || isThinking) return;
+        if (!apiKey) { alert("Please enter your API Key first!"); openModal('apikey-modal'); return; }
+
+        isAnalyzing = true; statusText.textContent = "ANALYZING FILE..."; speak("Let me take a look at that file, sir.", "neutral");
+        const formData = new FormData(); formData.append('file', input.files[0]);
+        try {
+            const res = await fetch('/analyze-file', { 
+                method: 'POST', 
+                headers: { 'x-api-key': apiKey },
+                body: formData 
+            });
+            const data = await res.json(); isAnalyzing = false; speak(data.reply, data.emotion || "neutral");
+        } catch (err) { isAnalyzing = false; speak("I could not read that file, sir.", "sad"); statusText.textContent = "SYSTEMS ONLINE."; }
+        input.value = ''; 
+    }
+
+    // --- UI CONTROLS ---
+    function saveApiKey() {
+        const key = document.getElementById('apikey-input').value.trim();
+        if (key.startsWith("gsk_")) {
+            localStorage.setItem('groq_api_key', key);
+            apiKey = key;
+            document.getElementById('apikey-modal').classList.remove('show');
+            speak("API Key saved successfully, sir.", "happy");
+        } else { alert("Invalid API Key. It must start with 'gsk_'"); }
+    }
+
+    function openModal(id) { 
+        if(id === 'apikey-modal') document.getElementById('apikey-input').value = apiKey || "";
+        document.getElementById(id).classList.add('show'); 
+    }
+    function closeModal(e) { if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('show'); }
+    function forceCloseModal() { document.getElementById('memory-modal').classList.remove('show'); }
+
+    async function saveNewMemory() {
+      const input = document.getElementById('new-memory-input'); const fact = input.value.trim();
+      if (!fact) return;
+      try {
+        const res = await fetch('/add-memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fact: fact }) });
+        if (res.ok) { input.value = ''; speak("Memory saved, sir.", "happy"); forceCloseModal(); } 
+      } catch (e) { speak("Cannot reach server.", "sad"); }
+    }
+
     const micBtn = document.getElementById('mic-btn');
     const chatInput = document.getElementById('chat-input');
     const statusText = document.getElementById('status-text');
@@ -425,7 +463,7 @@
       }
     }
 
-    // --- EMOTIONAL VOICE ENGINE ---
+    // --- EMOTIONAL VOICE ---
     function speak(text, emotion = "neutral") {
       if (!window.speechSynthesis) return;
       if (!text) { speechSynthesis.cancel(); isSpeaking = false; return; }
