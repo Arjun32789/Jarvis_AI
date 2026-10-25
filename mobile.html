@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#00e5ff" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Jarvis" />
+<link rel="manifest" href="manifest.json" />
+<title>Jarvis</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    min-height: 100vh;
+    background: radial-gradient(circle at center, #0a1929 0%, #000 100%);
+    color: #00e5ff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  /* Top status */
+  #status {
+    margin-top: 10px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: #7fdbff;
+    text-transform: uppercase;
+    text-align: center;
+    text-shadow: 0 0 10px #00e5ff;
+  }
+
+  /* Central AI orb */
+  #orbWrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+  }
+  #orb {
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #00e5ff, #003b4a 70%);
+    box-shadow: 0 0 60px #00e5ff, 0 0 120px #0077ff inset;
+    animation: pulse 2.6s ease-in-out infinite;
+    transition: all 0.4s ease;
+    position: relative;
+  }
+  #orb.active {
+    animation: pulseActive 1s ease-in-out infinite;
+    box-shadow: 0 0 100px #00e5ff, 0 0 180px #00e5ff inset;
+  }
+  #orb.speaking {
+    background: radial-gradient(circle at 30% 30%, #ff66cc, #4a0033 70%);
+    box-shadow: 0 0 100px #ff66cc, 0 0 180px #ff66cc inset;
+    animation: pulseActive 0.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.05); opacity: 1; }
+  }
+  @keyframes pulseActive {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+  }
+
+  /* Rings around orb */
+  .ring {
+    position: absolute;
+    border: 2px solid #00e5ff;
+    border-radius: 50%;
+    opacity: 0.4;
+    animation: ringPulse 3s ease-out infinite;
+  }
+  #orbWrap.active .ring {
+    border-color: #00e5ff;
+    opacity: 0.7;
+    animation-duration: 1.5s;
+  }
+  @keyframes ringPulse {
+    0% { width: 220px; height: 220px; opacity: 0.6; }
+    100% { width: 350px; height: 350px; opacity: 0; }
+  }
+
+  /* Transcript / response */
+  #transcript {
+    text-align: center;
+    font-size: 14px;
+    color: #b3f0ff;
+    min-height: 24px;
+    padding: 0 20px;
+    max-width: 500px;
+    text-shadow: 0 0 8px rgba(0,229,255,0.6);
+    margin-bottom: 8px;
+  }
+  #response {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 500;
+    color: #fff;
+    min-height: 24px;
+    padding: 0 20px;
+    max-width: 500px;
+    text-shadow: 0 0 12px #ff66cc;
+    margin-bottom: 16px;
+  }
+
+  /* Mic button */
+  #micBtn {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    border: 3px solid #00e5ff;
+    background: rgba(0, 30, 45, 0.8);
+    color: #00e5ff;
+    font-size: 44px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 30px rgba(0,229,255,0.5);
+    margin-bottom: 20px;
+  }
+  #micBtn:active {
+    transform: scale(0.92);
+    box-shadow: 0 0 50px #00e5ff;
+  }
+  #micBtn.listening {
+    background: #00e5ff;
+    color: #000;
+    animation: micPulse 1s ease-in-out infinite;
+    border-color: #fff;
+  }
+  #micBtn.speaking {
+    border-color: #ff66cc;
+    color: #ff66cc;
+    box-shadow: 0 0 40px rgba(255,102,204,0.6);
+  }
+  @keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 30px #00e5ff, 0 0 60px #00e5ff; }
+    50% { box-shadow: 0 0 50px #00e5ff, 0 0 100px #00e5ff; }
+  }
+
+  /* Quick action buttons */
+  #quickActions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 500px;
+    margin-bottom: 10px;
+  }
+  .quick-btn {
+    padding: 8px 14px;
+    font-size: 12px;
+    border: 1px solid #00e5ff;
+    background: rgba(0,30,45,0.6);
+    color: #00e5ff;
+    border-radius: 20px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .quick-btn:active {
+    background: #00e5ff;
+    color: #000;
+  }
+
+  /* Install banner */
+  #installBanner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #00e5ff;
+    color: #000;
+    padding: 12px;
+    display: none;
+    text-align: center;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  #installBanner button {
+    margin-left: 12px;
+    padding: 6px 16px;
+    background: #000;
+    color: #00e5ff;
+    border: none;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div id="status">Tap to activate</div>
+
+<div id="orbWrap">
+  <div class="ring"></div>
+  <div class="ring" style="animation-delay: 1s;"></div>
+  <div id="orb"></div>
+</div>
+
+<div id="transcript"></div>
+<div id="response"></div>
+
+<div id="quickActions">
+  <button class="quick-btn" onclick="quickCmd('open notepad')">📝 Notepad</button>
+  <button class="quick-btn" onclick="quickCmd('lock computer')">🔒 Lock</button>
+  <button class="quick-btn" onclick="quickCmd('take screenshot')">📸 SS</button>
+  <button class="quick-btn" onclick="quickCmd('volume up')">🔊 Vol+</button>
+  <button class="quick-btn" onclick="quickCmd('open youtube')">▶️ YT</button>
+  <button class="quick-btn" onclick="quickCmd('battery')">🔋 Batt</button>
+</div>
+
+<button id="micBtn">🎤</button>
+
+<div id="installBanner">
+  Install Jarvis on phone?
+  <button onclick="installPWA()">INSTALL</button>
+</div>
+
+<script>
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const orb = document.getElementById('orb');
+  const orbWrap = document.getElementById('orbWrap');
+  const micBtn = document.getElementById('micBtn');
+  const statusEl = document.getElementById('status');
+  const transcriptEl = document.getElementById('transcript');
+  const responseEl = document.getElementById('response');
+
+  let recognition = null;
+  let isListening = false;
+  let isSpeaking = false;
+  let deferredPrompt = null;
+
+  // ==================== SPEECH RECOGNITION ====================
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      isListening = true;
+      micBtn.classList.add('listening');
+      orb.classList.add('active');
+      orbWrap.classList.add('active');
+      statusEl.textContent = 'Listening...';
+      transcriptEl.textContent = '';
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map(r => r[0].transcript)
+        .join('');
+      transcriptEl.textContent = 'You: ' + transcript;
+
+      if (event.results[0].isFinal) {
+        handleCommand(transcript);
+      }
+    };
+
+    recognition.onerror = (e) => {
+      console.warn('Speech error:', e.error);
+      if (e.error === 'not-allowed') {
+        statusEl.textContent = 'Microphone blocked';
+      }
+    };
+
+    recognition.onend = () => {
+      isListening = false;
+      micBtn.classList.remove('listening');
+      orb.classList.remove('active');
+      orbWrap.classList.remove('active');
+      if (!isSpeaking) statusEl.textContent = 'Tap to speak';
+    };
+  } else {
+    statusEl.textContent = 'Use Chrome or Safari';
+    micBtn.disabled = true;
+  }
+
+  // ==================== SPEECH SYNTHESIS ====================
+  function speak(text) {
+    responseEl.textContent = text;
+    if (!window.speechSynthesis) return;
+    
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1;
+    u.pitch = 1.1;
+    u.volume = 1;
+    
+    // Try to pick a female voice
+    const voices = speechSynthesis.getVoices();
+    const female = voices.find(v => /zira|hazel|female|samantha|karen|moira|tessa/i.test(v.name));
+    if (female) u.voice = female;
+
+    u.onstart = () => {
+      isSpeaking = true;
+      orb.classList.add('speaking');
+      micBtn.classList.add('speaking');
+    };
+    u.onend = () => {
+      isSpeaking = false;
+      orb.classList.remove('speaking');
+      micBtn.classList.remove('speaking');
+      statusEl.textContent = 'Tap to speak';
+    };
+
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }
+
+  // ==================== COMMAND HANDLER ====================
+  async function handleCommand(text) {
+    const clean = text.toLowerCase().replace(/^(hey |ok |okay )?jarvis[, ]*/i, '').trim();
+    if (!clean) { speak("Yes sir, I'm listening."); return; }
+
+    // Quick local commands
+    if (clean.includes('time')) {
+      speak('The time is ' + new Date().toLocaleTimeString());
+      return;
+    }
+    if (clean.includes('date')) {
+      speak('Today is ' + new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }));
+      return;
+    }
+
+    statusEl.textContent = 'Executing...';
+    try {
+      const res = await fetch('/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: clean })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        speak('Done sir.');
+      } else if (data.status === 'unknown') {
+        // Try AI fallback
+        speak("I heard: " + clean);
+      } else {
+        speak('Command failed.');
+      }
+    } catch (e) {
+      speak('Cannot reach PC. Check WiFi.');
+    }
+  }
+
+  function quickCmd(cmd) {
+    transcriptEl.textContent = 'You: ' + cmd;
+    handleCommand(cmd);
+  }
+
+  // ==================== MIC BUTTON ====================
+  micBtn.addEventListener('click', () => {
+    if (!recognition) return;
+    if (isListening) {
+      recognition.stop();
+    } else {
+      try { recognition.start(); } catch (e) { console.warn(e); }
+    }
+  });
+
+  // Long press for continuous listening
+  let longPressTimer;
+  micBtn.addEventListener('touchstart', (e) => {
+    longPressTimer = setTimeout(() => {
+      if (recognition && !isListening) recognition.start();
+    }, 300);
+  });
+  micBtn.addEventListener('touchend', () => clearTimeout(longPressTimer));
+
+  // ==================== PWA INSTALL ====================
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('installBanner').style.display = 'block';
+  });
+
+  function installPWA() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choice) => {
+      if (choice.outcome === 'accepted') {
+        console.log('PWA installed');
+      }
+      deferredPrompt = null;
+      document.getElementById('installBanner').style.display = 'none';
+    });
+  }
+
+  // Register service worker for PWA
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  // Preload voices
+  if (window.speechSynthesis) {
+    speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+  }
+</script>
+</body>
+</html>

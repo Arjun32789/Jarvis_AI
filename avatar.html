@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jarvis - Real Life AI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: radial-gradient(circle at center, #0a1929 0%, #000000 100%); color: white; overflow: hidden; height: 100vh; width: 100vw; }
+  #canvas-container { position: absolute; inset: 0; z-index: 1; }
+  
+  #menu-panel { position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; gap: 10px; }
+  .menu-btn { background: rgba(10, 15, 25, 0.7); border: 1px solid rgba(0, 229, 255, 0.4); color: #00e5ff; padding: 8px 16px; border-radius: 8px; font-size: 12px; cursor: pointer; transition: 0.2s; backdrop-filter: blur(10px); }
+  .menu-btn:hover { background: rgba(0, 229, 255, 0.2); box-shadow: 0 0 15px rgba(0,229,255,0.4); }
+
+  .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px); pointer-events: auto; }
+  .modal-overlay.show { display: flex; }
+  .modal-content { background: rgba(10, 15, 25, 0.95); border: 1px solid #00e5ff; border-radius: 12px; padding: 30px; width: 90%; max-width: 600px; box-shadow: 0 0 30px rgba(0,229,255,0.3); position: relative; cursor: default; }
+  .modal-close { position: absolute; top: 15px; right: 15px; cursor: pointer; color: #ff66cc; font-size: 18px; }
+  .modal-content h2 { color: #00e5ff; margin-bottom: 20px; font-size: 18px; }
+
+  .glow { position: absolute; bottom: -20%; left: 50%; transform: translateX(-50%); width: 80vw; height: 50vh; background: radial-gradient(ellipse at center, rgba(0, 150, 255, 0.15) 0%, transparent 70%); z-index: 2; pointer-events: none; }
+  #status-text { position: absolute; top: 8vh; width: 100%; text-align: center; font-size: 12px; letter-spacing: 4px; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; z-index: 10; }
+  #chat-container { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 600px; z-index: 10; display: flex; align-items: center; background: rgba(10, 15, 25, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 6px 16px; backdrop-filter: blur(10px); }
+  #chat-input { flex: 1; background: transparent; border: none; color: white; font-size: 15px; padding: 12px 10px; outline: none; }
+  #send-btn { background: rgba(0, 229, 255, 0.1); border: none; color: #00e5ff; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; }
+  #mic-container { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10; }
+  #mic-btn { width: 64px; height: 64px; border-radius: 50%; background: rgba(10, 15, 25, 0.8); border: 1px solid rgba(255, 255, 255, 0.2); color: white; font-size: 24px; cursor: pointer; transition: 0.3s; }
+  #mic-btn.listening { background: rgba(0, 229, 255, 0.2); border-color: #00e5ff; color: #00e5ff; box-shadow: 0 0 40px rgba(0, 229, 255, 0.6); transform: scale(1.1); }
+  #loader { position: absolute; inset: 0; z-index: 500; background: #05050a; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .spinner { width: 40px; height: 40px; border: 2px solid rgba(255,255,255,0.1); border-top-color: #00e5ff; border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+  <div id="loader"><div class="spinner"></div><p style="margin-top:20px;font-size:12px;">CONNECTING TO NEURAL NETWORK...</p></div>
+
+  <div id="menu-panel">
+    <button class="menu-btn" onclick="openModal('apikey-modal')">🔑 API Key</button>
+    <button class="menu-btn" onclick="openModal('memory-modal')">🧠 Add Memory</button>
+    <button class="menu-btn" onclick="document.getElementById('file-input').click()" style="border-color: #00ff88; color: #00ff88;">📁 Analyze File</button>
+    <button class="menu-btn" onclick="captureAndAnalyzeScreen()" style="border-color: #ff66cc; color: #ff66cc;">👁️ Look at Screen</button>
+    <input type="file" id="file-input" style="display:none;" onchange="analyzeFile(this)">
+  </div>
+
+  <!-- API KEY MODAL -->
+  <div id="apikey-modal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <h2>ENTER GROQ API KEY</h2>
+      <p style="font-size: 13px; color: #aaa; margin-bottom: 20px;">Get your free key from <a href="https://console.groq.com/keys" target="_blank" style="color: #00e5ff;">console.groq.com/keys</a></p>
+      <div style="display:flex; gap:10px;">
+          <input type="password" id="apikey-input" placeholder="gsk_..." style="flex:1; padding:12px; background:rgba(255,255,255,0.1); border:1px solid #00e5ff; color:white; border-radius:5px; outline:none; font-size:14px;">
+          <button onclick="saveApiKey()" style="background:#00e5ff; color:black; border:none; padding:10px 24px; border-radius:5px; font-weight:bold; cursor:pointer; font-size:14px;">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MEMORY MODAL -->
+  <div id="memory-modal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <span class="modal-close" onclick="forceCloseModal()">✖</span>
+      <h2>ADD TO MEMORY CORE</h2>
+      <div style="display:flex; gap:10px;">
+          <input type="text" id="new-memory-input" placeholder="e.g., My favorite color is red" style="flex:1; padding:12px; background:rgba(255,255,255,0.1); border:1px solid #00e5ff; color:white; border-radius:5px; outline:none; font-size:14px;">
+          <button onclick="saveNewMemory()" style="background:#00e5ff; color:black; border:none; padding:10px 24px; border-radius:5px; font-weight:bold; cursor:pointer; font-size:14px;">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="canvas-container"></div>
+  <div class="glow"></div>
+
+  <div id="status-text">SYSTEMS ONLINE. AWAITING COMMAND.</div>
+  
+  <div id="chat-container">
+    <input type="text" id="chat-input" placeholder="Ask Jarvis to do anything..." autocomplete="off" />
+    <button id="send-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
+  </div>
+
+  <div id="mic-container">
+    <button id="mic-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg></button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+  <script>
+    // --- 3D SETUP ---
+    const MODEL_URL = './avatar.glb'; 
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 1.4, 2.5); 
+    
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.ShadowMaterial({ opacity: 0.4 }));
+    shadowPlane.rotation.x = -Math.PI / 2; shadowPlane.receiveShadow = true; scene.add(shadowPlane);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; controls.enablePan = false; controls.minDistance = 0.5; controls.maxDistance = 5;
+    controls.target.set(0, 1.2, 0); 
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(2, 4, 3); dirLight.castShadow = true; scene.add(dirLight);
+    const rimLight = new THREE.PointLight(0x00e5ff, 2, 10); rimLight.position.set(-2, 2, -3); scene.add(rimLight);
+    const fillLight = new THREE.PointLight(0xff66cc, 1, 10); fillLight.position.set(3, 1, 1); scene.add(fillLight);
+
+    // --- STATE & API KEY ---
+    let apiKey = localStorage.getItem('groq_api_key');
+    if (!apiKey) {
+        setTimeout(() => openModal('apikey-modal'), 1000); // Show modal after 1s
+    }
+
+    let avatar;
+    let bones = { head: null, rightArm: null, leftArm: null, spine: null, hips: null, rightLeg: null, leftLeg: null, rightKnee: null, leftKnee: null, rightElbow: null, leftElbow: null, rightHand: null, leftHand: null };
+    let meshWithBlendshapes = null, morphTargets = { blink: -1, mouth: -1, smile: -1 };
+    let isSpeaking = false, isWaving = false, isAnalyzing = false, isThinking = false, isListening = false;
+    let mouseX = 0, mouseY = 0, lastMouseMove = Date.now();
+    let autoLookTimer = 0, targetHeadY = 0, targetHeadX = 0, gestureTimer = 5;
+
+    let introState = 'walking', introStartTime = 0;
+    const WALK_DURATION = 4.5, TURN_DURATION = 1.2;
+    const START_X = 4, START_Z = -1.5;
+    const WALK_ANGLE = Math.atan2(-START_X, -START_Z) + Math.PI; 
+    const FRONT_ANGLE = Math.PI;
+    
+    let pose = { rX: 0.05, rY: 0.1, rZ: -1.25, lX: 0.05, lY: -0.1, lZ: 1.25, rElbowY: -0.2, lElbowY: 0.2, rHandZ: 0.1, lHandZ: -0.1 };
+
+    window.addEventListener('mousemove', (e) => {
+      mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+      mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+      lastMouseMove = Date.now();
+    });
+
+    // --- LOAD MODEL ---
+    const loader = new THREE.GLTFLoader();
+    loader.load(MODEL_URL, (gltf) => {
+      avatar = gltf.scene;
+      avatar.position.set(START_X, 0, START_Z); avatar.rotation.y = WALK_ANGLE;
+      scene.add(avatar);
+
+      avatar.traverse((node) => {
+        if (node.isBone) {
+          const n = node.name.toLowerCase();
+          if (n.includes('head') && !n.includes('top')) bones.head = node;
+          if (n.includes('spine') && !n.includes('1') && !n.includes('2')) bones.spine = node;
+          if (n.includes('hips') || n.includes('pelvis')) bones.hips = node;
+          if (n.includes('rightarm') || n.includes('right_arm') || n === 'j_bip_r_upperarm') bones.rightArm = node;
+          if (n.includes('leftarm') || n.includes('left_arm') || n === 'j_bip_l_upperarm') bones.leftArm = node;
+          if (n.includes('rightforearm') || n.includes('right_lowerarm') || n.includes('right_elbow') || n === 'j_bip_r_lowerarm') bones.rightElbow = node;
+          if (n.includes('leftforearm') || n.includes('left_lowerarm') || n.includes('left_elbow') || n === 'j_bip_l_lowerarm') bones.leftElbow = node;
+          if (n.includes('righthand') || n === 'j_bip_r_hand') bones.rightHand = node;
+          if (n.includes('lefthand') || n === 'j_bip_l_hand') bones.leftHand = node;
+          if (n.includes('rightupleg') || n.includes('right_leg') || n === 'j_bip_r_upperleg') bones.rightLeg = node;
+          if (n.includes('leftupleg') || n.includes('left_leg') || n === 'j_bip_l_upperleg') bones.leftLeg = node;
+          if (n.includes('rightlowerleg') || n.includes('right_knee') || n === 'j_bip_r_lowerleg') bones.rightKnee = node;
+          if (n.includes('leftlowerleg') || n.includes('left_knee') || n === 'j_bip_l_lowerleg') bones.leftKnee = node;
+        }
+        if (node.isMesh) {
+          node.castShadow = true; node.receiveShadow = true;
+          if (node.morphTargetDictionary) {
+            meshWithBlendshapes = node;
+            const dict = node.morphTargetDictionary;
+            for (let key in dict) {
+              const k = key.toLowerCase();
+              if (k.includes('blink') || k.includes('eye_close')) morphTargets.blink = dict[key];
+              if (k.includes('mouth_a') || k.includes('aa')) morphTargets.mouth = dict[key];
+              if (k.includes('happy') || k.includes('joy')) morphTargets.smile = dict[key];
+            }
+          }
+        }
+      });
+
+      document.getElementById('loader').style.opacity = '0';
+      setTimeout(() => { document.getElementById('loader').style.display = 'none'; }, 500);
+      introStartTime = clock.getElapsedTime();
+      animate();
+      startBlinking();
+    });
+
+    // --- ANIMATION LOOP ---
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const time = clock.getElapsedTime();
+
+      if (avatar) {
+        const elapsedIntro = time - introStartTime;
+        if (introState === 'walking') {
+          let walkProgress = Math.min(elapsedIntro / WALK_DURATION, 1);
+          avatar.position.x = THREE.MathUtils.lerp(START_X, 0, walkProgress);
+          avatar.position.z = THREE.MathUtils.lerp(START_Z, 0, walkProgress);
+          avatar.rotation.y = WALK_ANGLE;
+          if (walkProgress < 1) {
+            const phase = elapsedIntro * 8.0;
+            const sinPhase = Math.sin(phase);
+            const cosPhase = Math.cos(phase);
+            avatar.position.y = Math.abs(Math.sin(phase)) * 0.04;
+            avatar.rotation.x = -0.03; avatar.rotation.z = cosPhase * 0.02;
+            if (bones.hips) { bones.hips.rotation.y = sinPhase * 0.15; bones.hips.rotation.z = cosPhase * 0.05; }
+            if (bones.spine) { bones.spine.rotation.y = -sinPhase * 0.1; bones.spine.rotation.z = -cosPhase * 0.03; }
+            if (bones.rightLeg) { bones.rightLeg.rotation.x = sinPhase * 0.6; if (bones.rightKnee) bones.rightKnee.rotation.x = -Math.max(0, sinPhase) * 0.8; }
+            if (bones.leftLeg) { bones.leftLeg.rotation.x = -sinPhase * 0.6; if (bones.leftKnee) bones.leftKnee.rotation.x = -Math.max(0, -sinPhase) * 0.8; }
+            if (bones.rightArm) { bones.rightArm.rotation.x = -sinPhase * 0.4; bones.rightArm.rotation.z = -0.9; }
+            if (bones.leftArm) { bones.leftArm.rotation.x = sinPhase * 0.4; bones.leftArm.rotation.z = 0.9; }
+          } else { introState = 'turning'; introStartTime = time; }
+        }
+
+        if (introState === 'turning') {
+          const turnProgress = Math.min((time - introStartTime) / TURN_DURATION, 1);
+          avatar.position.set(0, 0, 0); avatar.rotation.y = THREE.MathUtils.lerp(WALK_ANGLE, FRONT_ANGLE, turnProgress);
+          avatar.rotation.x = THREE.MathUtils.lerp(avatar.rotation.x, 0, 0.1); 
+          if (bones.rightLeg) bones.rightLeg.rotation.x = THREE.MathUtils.lerp(bones.rightLeg.rotation.x, 0, 0.1);
+          if (bones.leftLeg) bones.leftLeg.rotation.x = THREE.MathUtils.lerp(bones.leftLeg.rotation.x, 0, 0.1);
+          if (bones.rightKnee) bones.rightKnee.rotation.x = THREE.MathUtils.lerp(bones.rightKnee.rotation.x, 0, 0.1);
+          if (bones.leftKnee) bones.leftKnee.rotation.x = THREE.MathUtils.lerp(bones.leftKnee.rotation.x, 0, 0.1);
+          if (bones.hips) { bones.hips.rotation.y = THREE.MathUtils.lerp(bones.hips.rotation.y, 0, 0.1); bones.hips.rotation.z = THREE.MathUtils.lerp(bones.hips.rotation.z, 0, 0.1); }
+          if (bones.spine) { bones.spine.rotation.y = THREE.MathUtils.lerp(bones.spine.rotation.y, 0, 0.1); bones.spine.rotation.z = THREE.MathUtils.lerp(bones.spine.rotation.z, 0, 0.1); }
+          if (turnProgress >= 1) {
+            introState = 'idle'; avatar.position.set(0, 0, 0); avatar.rotation.set(0, FRONT_ANGLE, 0);
+            setTimeout(() => { speak("Systems online. Hello, I am ready sir.", "happy"); triggerWave(); }, 500);
+          }
+        }
+
+        if (introState === 'idle') {
+          if (Date.now() - lastMouseMove > 4000) {
+            if (time > autoLookTimer) {
+              targetHeadY = (Math.random() - 0.5) * 0.6; targetHeadX = (Math.random() - 0.5) * 0.2;
+              autoLookTimer = time + Math.random() * 3 + 2; 
+            }
+          } else { targetHeadY = -mouseX * 0.4; targetHeadX = -mouseY * 0.2; }
+          
+          if (isListening) { targetHeadY = 0; targetHeadX = 0.15; targetHeadY += Math.sin(time * 2) * 0.02; }
+          if (isThinking) { targetHeadX = 0.25; targetHeadY = -0.3; targetHeadX += Math.sin(time * 3) * 0.02; }
+
+          if (bones.head) {
+            const noiseY = Math.sin(time * 1.5) * 0.01;
+            bones.head.rotation.y = THREE.MathUtils.lerp(bones.head.rotation.y, targetHeadY + noiseY, 0.04);
+            bones.head.rotation.x = THREE.MathUtils.lerp(bones.head.rotation.x, targetHeadX, 0.04);
+          }
+
+          if (isWaving && bones.rightArm) {
+            bones.rightArm.rotation.z = THREE.MathUtils.lerp(bones.rightArm.rotation.z, -0.6, 0.1); 
+            bones.rightArm.rotation.x = THREE.MathUtils.lerp(bones.rightArm.rotation.x, 0.6, 0.1);
+            bones.rightArm.rotation.y = THREE.MathUtils.lerp(bones.rightArm.rotation.y, 0, 0.1);
+            if (bones.rightElbow) {
+              bones.rightElbow.rotation.y = THREE.MathUtils.lerp(bones.rightElbow.rotation.y, 1.2, 0.1);
+              bones.rightElbow.rotation.z = Math.sin(time * 12) * 0.4;
+            }
+            if (bones.rightHand) {
+              bones.rightHand.rotation.z = THREE.MathUtils.lerp(bones.rightHand.rotation.z, 0, 0.1);
+              bones.rightHand.rotation.y = Math.sin(time * 12 + 1) * 0.2;
+            }
+          } else {
+            if (bones.spine) { bones.spine.rotation.x = Math.sin(time * 1.5) * 0.015; }
+            if (bones.leftArm) {
+              bones.leftArm.rotation.x = THREE.MathUtils.lerp(bones.leftArm.rotation.x, pose.lX, 0.1);
+              bones.leftArm.rotation.y = THREE.MathUtils.lerp(bones.leftArm.rotation.y, pose.lY, 0.1);
+              bones.leftArm.rotation.z = THREE.MathUtils.lerp(bones.leftArm.rotation.z, pose.lZ, 0.1);
+              if (bones.leftElbow) bones.leftElbow.rotation.y = THREE.MathUtils.lerp(bones.leftElbow.rotation.y, pose.lElbowY, 0.1);
+              if (bones.leftHand) bones.leftHand.rotation.z = THREE.MathUtils.lerp(bones.leftHand.rotation.z, pose.lHandZ, 0.1);
+            }
+            if (bones.rightArm) {
+              bones.rightArm.rotation.x = THREE.MathUtils.lerp(bones.rightArm.rotation.x, pose.rX, 0.1);
+              bones.rightArm.rotation.y = THREE.MathUtils.lerp(bones.rightArm.rotation.y, pose.rY, 0.1);
+              bones.rightArm.rotation.z = THREE.MathUtils.lerp(bones.rightArm.rotation.z, pose.rZ, 0.1);
+              if (bones.rightElbow) bones.rightElbow.rotation.y = THREE.MathUtils.lerp(bones.rightElbow.rotation.y, pose.rElbowY, 0.1);
+              if (bones.rightHand) bones.rightHand.rotation.z = THREE.MathUtils.lerp(bones.rightHand.rotation.z, pose.rHandZ, 0.1);
+            }
+          }
+
+          if (meshWithBlendshapes) {
+            if (morphTargets.mouth !== -1) {
+              if (isSpeaking) {
+                meshWithBlendshapes.morphTargetInfluences[morphTargets.mouth] = (Math.sin(time * 18) * 0.5 + 0.5) * 0.8;
+                if (bones.head) bones.head.rotation.x += Math.sin(time * 5) * 0.01;
+              } else {
+                meshWithBlendshapes.morphTargetInfluences[morphTargets.mouth] = THREE.MathUtils.lerp(meshWithBlendshapes.morphTargetInfluences[morphTargets.mouth], 0, 0.1);
+              }
+            }
+            if (morphTargets.smile !== -1) {
+              const targetSmile = (isSpeaking || isWaving) ? 0.5 : 0.15;
+              meshWithBlendshapes.morphTargetInfluences[morphTargets.smile] = THREE.MathUtils.lerp(meshWithBlendshapes.morphTargetInfluences[morphTargets.smile], targetSmile, 0.05);
+            }
+          }
+        }
+      }
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    function startBlinking() {
+      function doBlink() {
+        if (meshWithBlendshapes && morphTargets.blink !== -1) {
+          meshWithBlendshapes.morphTargetInfluences[morphTargets.blink] = 1;
+          setTimeout(() => { meshWithBlendshapes.morphTargetInfluences[morphTargets.blink] = 0; }, 120);
+        }
+      }
+      setInterval(() => { doBlink(); if (Math.random() < 0.2) setTimeout(doBlink, 250); }, Math.random() * 3000 + 2000);
+    }
+
+    // --- API KEY & UI LOGIC ---
+    function saveApiKey() {
+        const key = document.getElementById('apikey-input').value.trim();
+        if (key.startsWith("gsk_")) {
+            localStorage.setItem('groq_api_key', key);
+            apiKey = key;
+            document.getElementById('apikey-modal').classList.remove('show');
+            speak("API Key saved successfully, sir.", "happy");
+        } else {
+            alert("Invalid API Key. It must start with 'gsk_'");
+        }
+    }
+
+    function openModal(id) { 
+        if(id === 'apikey-modal') document.getElementById('apikey-input').value = apiKey || "";
+        document.getElementById(id).classList.add('show'); 
+    }
+    function closeModal(e) { if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('show'); }
+    function forceCloseModal() { document.getElementById('memory-modal').classList.remove('show'); }
+
+    async function saveNewMemory() {
+      const input = document.getElementById('new-memory-input'); const fact = input.value.trim();
+      if (!fact) return;
+      try {
+        const res = await fetch('/add-memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fact: fact }) });
+        if (res.ok) { input.value = ''; speak("Memory saved, sir.", "happy"); forceCloseModal(); } 
+      } catch (e) { speak("Cannot reach server.", "sad"); }
+    }
+
+    // --- FILE & VISION ANALYSIS ---
+    async function analyzeFile(input) {
+        if (!input.files || input.files.length === 0) return;
+        if (isAnalyzing || isThinking) return;
+        if (!apiKey) { alert("Please enter your API Key first!"); openModal('apikey-modal'); return; }
+
+        isAnalyzing = true; statusText.textContent = "ANALYZING FILE..."; speak("Let me take a look at that file, sir.", "neutral");
+        const formData = new FormData(); formData.append('file', input.files[0]);
+        try {
+            const res = await fetch('/analyze-file', { 
+                method: 'POST', 
+                headers: { 'x-api-key': apiKey },
+                body: formData 
+            });
+            const data = await res.json(); isAnalyzing = false; speak(data.reply, data.emotion || "neutral");
+        } catch (err) { isAnalyzing = false; speak("I could not read that file, sir.", "sad"); statusText.textContent = "SYSTEMS ONLINE."; }
+        input.value = ''; 
+    }
+
+    async function captureAndAnalyzeScreen() {
+        if (isAnalyzing || isThinking) return;
+        if (!apiKey) { alert("Please enter your API Key first!"); openModal('apikey-modal'); return; }
+
+        isAnalyzing = true; statusText.textContent = "LOOKING AT SCREEN...";
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: "always" }, audio: false });
+            const video = document.createElement('video'); video.srcObject = stream; await video.play();
+            await new Promise(r => setTimeout(r, 500));
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 1280; const scale = Math.min(1, MAX_WIDTH / video.videoWidth);
+            canvas.width = video.videoWidth * scale; canvas.height = video.videoHeight * scale;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            stream.getTracks().forEach(track => track.stop());
+            const base64Image = canvas.toDataURL('image/jpeg', 0.7);
+            
+            const res = await fetch('/see-screen', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey }, 
+                body: JSON.stringify({ image: base64Image }) 
+            });
+            const data = await res.json(); isAnalyzing = false; speak(data.reply, data.emotion || "neutral");
+        } catch (err) { isAnalyzing = false; speak("Screen sharing was cancelled, sir.", "sad"); statusText.textContent = "SYSTEMS ONLINE."; }
+    }
+
+    // --- TEXT & VOICE INPUT ---
+    const micBtn = document.getElementById('mic-btn');
+    const chatInput = document.getElementById('chat-input');
+    const statusText = document.getElementById('status-text');
+
+    function triggerWave() { if (isWaving) return; isWaving = true; setTimeout(() => { isWaving = false; }, 3500); }
+    
+    chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { handleCommand(chatInput.value); chatInput.value = ''; } });
+    document.getElementById('send-btn').addEventListener('click', () => { handleCommand(chatInput.value); chatInput.value = ''; });
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.onstart = () => { isListening = true; micBtn.classList.add('listening'); statusText.textContent = "LISTENING..."; };
+      recognition.onresult = (event) => handleCommand(event.results[0][0].transcript);
+      recognition.onend = () => { isListening = false; micBtn.classList.remove('listening'); statusText.textContent = "SYSTEMS ONLINE."; };
+    }
+    micBtn.addEventListener('click', () => { if (isListening) recognition.stop(); else recognition.start(); });
+
+    async function handleCommand(text) {
+      if (!text.trim()) return;
+      if (!apiKey) { alert("Please enter your API Key first!"); openModal('apikey-modal'); return; }
+
+      const lower = text.toLowerCase();
+      if (lower.includes('hello') || lower.includes('hi ')) triggerWave();
+      
+      statusText.textContent = "THINKING..."; 
+      isThinking = true; speak("");
+      
+      try {
+        const res = await fetch('/chat', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey }, 
+            body: JSON.stringify({ message: text }) 
+        });
+        const data = await res.json(); 
+        isThinking = false;
+        speak(data.reply, data.emotion);
+      } catch (e) { 
+        isThinking = false;
+        speak("Connection failed. Make sure the server is running.", "sad"); 
+      }
+    }
+
+    // --- EMOTIONAL VOICE ENGINE ---
+    function speak(text, emotion = "neutral") {
+      if (!window.speechSynthesis) return;
+      if (!text) { speechSynthesis.cancel(); isSpeaking = false; return; }
+      
+      statusText.textContent = "SPEAKING..."; 
+      isSpeaking = true;
+      
+      const u = new SpeechSynthesisUtterance(text);
+      const voices = speechSynthesis.getVoices();
+      const female = voices.find(v => /zira|hazel|female|samantha|karen|moira|tessa/i.test(v.name));
+      if (female) u.voice = female;
+
+      if (emotion === "happy") { u.pitch = 1.4; u.rate = 1.1; } 
+      else if (emotion === "serious") { u.pitch = 1.0; u.rate = 0.9; } 
+      else if (emotion === "sad") { u.pitch = 0.8; u.rate = 0.85; } 
+      else { u.pitch = 1.15; u.rate = 1.0; }
+
+      u.onend = () => { isSpeaking = false; statusText.textContent = "SYSTEMS ONLINE."; };
+      speechSynthesis.speak(u);
+    }
+  </script>
+</body>
+</html>

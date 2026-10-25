@@ -1,0 +1,6 @@
+node_modules/
+uploads/
+photos/
+jarvis_memory.json
+*.log
+.DS_Store

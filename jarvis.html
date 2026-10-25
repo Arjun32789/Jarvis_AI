@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jarvis AI – Ultimate</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { min-height: 100vh; background: #0a0f1e; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; color: #00e5ff; }
+  #avatar-container { position: fixed; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; }
+  .avatar-view { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; transition: filter 0.5s ease; animation: breathe 6s ease-in-out infinite; z-index: 1; }
+  .avatar-view.active { display: block; }
+  @keyframes breathe { 0%, 100% { transform: scale(1) translateY(0); } 50% { transform: scale(1.03) translateY(-5px); } }
+  .listening .avatar-view.active { filter: drop-shadow(0 0 40px #00e5ff) brightness(1.1) contrast(1.05); animation: breathe 1.5s ease-in-out infinite; }
+  .speaking .avatar-view.active { filter: drop-shadow(0 0 50px #ff66cc) brightness(1.15) contrast(1.1); animation: breathe 0.5s ease-in-out infinite; }
+  #eyes { animation: blink 4s infinite; transform-origin: center 220px; }
+  @keyframes blink { 0%, 96%, 100% { transform: scaleY(1); } 98% { transform: scaleY(0.05); } }
+  
+  #camera-feed { position: absolute; top: 20px; right: 20px; width: 300px; height: auto; border: 2px solid #00e5ff; border-radius: 10px; display: none; z-index: 20; box-shadow: 0 0 20px #00e5ff; }
+  
+  .particle { position: absolute; bottom: -10px; background: #00e5ff; border-radius: 50%; opacity: 0; box-shadow: 0 0 10px #00e5ff, 0 0 20px #00e5ff; animation: floatUp linear infinite; pointer-events: none; z-index: 4; }
+  @keyframes floatUp { 0% { transform: translateY(0) scale(0); opacity: 0; } 10% { opacity: 0.8; } 90% { opacity: 0.8; } 100% { transform: translateY(-100vh) scale(1.5); opacity: 0; } }
+  
+  .ui { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 30px 20px 20px; background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 60%, transparent 100%); pointer-events: none; }
+  .ui > * { pointer-events: auto; }
+  #status { font-size: 1.1rem; letter-spacing: 2px; color: #7fdbff; text-shadow: 0 0 10px #00e5ff; text-transform: uppercase; }
+  .button-group { display: flex; gap: 10px; }
+  button { padding: 14px 30px; font-size: 1rem; border: 2px solid #00e5ff; background: rgba(0, 20, 30, 0.6); color: #00e5ff; border-radius: 40px; cursor: pointer; transition: 0.3s; letter-spacing: 1px; backdrop-filter: blur(6px); text-transform: uppercase; font-weight: 600; }
+  button:hover { background: #00e5ff; color: #000; box-shadow: 0 0 40px #00e5ff; }
+  #toggleBtn { border-color: #ff66cc; color: #ff66cc; }
+  #toggleBtn:hover { background: #ff66cc; color: #000; box-shadow: 0 0 40px #ff66cc; }
+  #transcript, #response { max-width: 800px; text-align: center; font-size: 1rem; line-height: 1.6; min-height: 24px; color: #b3f0ff; text-shadow: 0 0 8px rgba(0,229,255,0.6); }
+  #response { color: #fff; font-weight: 500; text-shadow: 0 0 12px #ff66cc; }
+</style>
+</head>
+<body>
+
+<div id="avatar-container">
+  <video id="camera-feed" autoplay playsinline></video>
+  <canvas id="camera-canvas" style="display:none;"></canvas>
+
+  <svg id="avatar-svg" class="avatar-view active" viewBox="0 0 400 500" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <radialGradient id="faceGrad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ffe0d0"/><stop offset="100%" stop-color="#f0c0a0"/></radialGradient>
+      <radialGradient id="hairGrad" cx="50%" cy="30%" r="70%"><stop offset="0%" stop-color="#4a2a1a"/><stop offset="100%" stop-color="#1a0a05"/></radialGradient>
+    </defs>
+    <ellipse cx="200" cy="200" rx="150" ry="180" fill="url(#hairGrad)"/>
+    <ellipse cx="200" cy="230" rx="110" ry="130" fill="url(#faceGrad)"/>
+    <path d="M90 180 Q120 100 200 110 Q280 100 310 180 Q280 140 200 150 Q120 140 90 180 Z" fill="url(#hairGrad)"/>
+    <g id="eyes">
+      <ellipse cx="150" cy="220" rx="25" ry="30" fill="white"/><ellipse cx="150" cy="220" rx="15" ry="20" fill="#4a2a1a"/><circle cx="145" cy="215" r="5" fill="white"/>
+      <ellipse cx="250" cy="220" rx="25" ry="30" fill="white"/><ellipse cx="250" cy="220" rx="15" ry="20" fill="#4a2a1a"/><circle cx="245" cy="215" r="5" fill="white"/>
+    </g>
+    <ellipse cx="130" cy="270" rx="20" ry="10" fill="#ffb0b0" opacity="0.5"/><ellipse cx="270" cy="270" rx="20" ry="10" fill="#ffb0b0" opacity="0.5"/>
+    <path d="M200 250 L195 260 L205 260 Z" fill="#e0a090" opacity="0.5"/>
+    <path id="mouth" d="M180 290 Q200 300 220 290" stroke="#d04040" stroke-width="4" fill="none" stroke-linecap="round"/>
+  </svg>
+
+  <video id="avatar-video" class="avatar-view" autoplay loop muted playsinline poster="avatar.jpg">
+    <source src="avatar.mp4" type="video/mp4">
+    <img src="https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1920&auto=format&fit=crop" alt="Anime Avatar" style="width:100vw; height:100vh; object-fit:cover;">
+  </video>
+</div>
+
+<div class="ui">
+  <div id="status">Click to activate</div>
+  <div class="button-group">
+    <button id="micBtn">🎤 Activate Jarvis</button>
+    <button id="toggleBtn">🔄 Switch to Video</button>
+  </div>
+  <div id="transcript"></div>
+  <div id="response"></div>
+</div>
+
+<script>
+  let currentAvatar = 'svg'; let listening = false; let isSpeaking = false; let mouthInterval = null;
+  let cameraStream = null;
+
+  function createParticle() {
+    const p = document.createElement('div'); p.classList.add('particle');
+    const s = Math.random() * 4 + 2; p.style.width = s + 'px'; p.style.height = s + 'px';
+    p.style.left = Math.random() * 100 + 'vw'; p.style.animationDuration = (Math.random() * 5 + 5) + 's';
+    p.style.animationDelay = Math.random() * 5 + 's';
+    document.getElementById('avatar-container').appendChild(p);
+    setTimeout(() => { p.remove(); }, 15000);
+  }
+  setInterval(createParticle, 300);
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) alert("Please use Chrome or Edge for Speech Recognition.");
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true; recognition.interimResults = false; recognition.lang = 'en-US';
+
+  const container = document.getElementById('avatar-container');
+  const avatarSvg = document.getElementById('avatar-svg');
+  const avatarVideo = document.getElementById('avatar-video');
+  const mouth = document.getElementById('mouth');
+  const micBtn = document.getElementById('micBtn');
+  const toggleBtn = document.getElementById('toggleBtn');
+  const statusEl = document.getElementById('status');
+  const transcriptEl = document.getElementById('transcript');
+  const responseEl = document.getElementById('response');
+
+  const MOUTH_CLOSED = "M180 290 Q200 300 220 290";
+  const MOUTH_OPEN   = "M180 290 Q200 320 220 290";
+  function startMouthAnimation() {
+    if (mouthInterval) clearInterval(mouthInterval);
+    let open = false;
+    mouthInterval = setInterval(() => { open = !open; mouth.setAttribute('d', open ? MOUTH_OPEN : MOUTH_CLOSED); }, 150);
+  }
+  function stopMouthAnimation() {
+    if (mouthInterval) clearInterval(mouthInterval); mouthInterval = null;
+    mouth.setAttribute('d', MOUTH_CLOSED);
+  }
+
+  function speak(text) {
+    responseEl.textContent = text;
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1; u.pitch = 1.1; u.volume = 1;
+    u.onstart = () => {
+      isSpeaking = true; container.classList.add('speaking');
+      if (currentAvatar === 'svg') startMouthAnimation();
+      else { const v = document.getElementById('avatar-video'); if(v) v.play().catch(e=>{}); }
+    };
+    u.onend = () => {
+      isSpeaking = false; container.classList.remove('speaking');
+      if (currentAvatar === 'svg') stopMouthAnimation();
+    };
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }
+
+  async function startCamera() {
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const video = document.getElementById('camera-feed');
+      video.srcObject = cameraStream; video.style.display = 'block';
+      speak("Camera activated.");
+    } catch (err) { speak("I cannot access the camera."); }
+  }
+  function stopCamera() {
+    if (cameraStream) { cameraStream.getTracks().forEach(track => track.stop()); cameraStream = null; }
+    document.getElementById('camera-feed').style.display = 'none';
+  }
+  async function takePhoto() {
+    if (!cameraStream) await startCamera();
+    const video = document.getElementById('camera-feed');
+    const canvas = document.getElementById('camera-canvas');
+    setTimeout(async () => {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      try {
+        const res = await fetch('http://localhost:3000/save-photo', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: dataUrl })
+        });
+        const data = await res.json();
+        speak(data.status === 'success' ? "Photo saved to the photos folder." : "Failed to save photo.");
+      } catch (e) { speak("I cannot reach the laptop bridge."); }
+      stopCamera();
+    }, 1000);
+  }
+
+  // --- EXECUTE BASIC COMMANDS ---
+  async function executeLaptopCommand(command) {
+    try {
+      const res = await fetch('http://localhost:3000/execute', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: command })
+      });
+      const data = await res.json();
+      if (data.status === 'success') speak("Done sir.");
+      else if (data.status === 'unknown') speak("I don't know how to do that yet.");
+      else speak("I encountered an error.");
+    } catch (e) { speak("I cannot reach the laptop bridge. Is the server running?"); }
+  }
+
+  // --- EXECUTE COMPLEX POWERSHELL SCRIPTS ---
+  async function executePowerShell(script, successMessage) {
+    try {
+      speak("Executing complex task, please wait.");
+      const res = await fetch('http://localhost:3000/run-powershell', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script: script })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        speak(successMessage);
+        console.log("PowerShell Output:", data.output);
+      } else {
+        speak("I ran into an error executing that task.");
+        console.error(data.message);
+      }
+    } catch (e) { speak("I cannot reach the laptop bridge. Is the server running?"); }
+  }
+
+  // --- COMPLEX TASK MAP (Natural Language to PowerShell) ---
+  function handleComplexTask(clean) {
+    // 1. Organize Downloads Folder
+    if (clean.includes('organize') && clean.includes('downloads')) {
+      const psScript = `
+        $path = "$env:USERPROFILE\\Downloads"
+        Get-ChildItem -Path $path -File | ForEach-Object {
+            $folder = Join-Path $path $_.Extension.TrimStart('.').ToUpper()
+            if (!(Test-Path $folder)) { New-Item -ItemType Directory -Path $folder | Out-Null }
+            Move-Item -Path $_.FullName -Destination $folder -Force
+        }
+      `;
+      executePowerShell(psScript, "I have organized your Downloads folder by file type.");
+      return true;
+    }
+
+    // 2. Create a Project Folder with Files
+    if (clean.includes('create') && clean.includes('project') && clean.includes('folder')) {
+      const psScript = `
+        $projectPath = "$env:USERPROFILE\\Desktop\\MyNewProject"
+        if (!(Test-Path $projectPath)) { New-Item -ItemType Directory -Path $projectPath | Out-Null }
+        Set-Content -Path "$projectPath\\index.html" -Value "<h1>Hello World</h1>"
+        Set-Content -Path "$projectPath\\style.css" -Value "body { background: #000; color: #fff; }"
+        Set-Content -Path "$projectPath\\script.js" -Value "console.log('Jarvis was here');"
+      `;
+      executePowerShell(psScript, "I have created a new project folder on your Desktop with HTML, CSS, and JS files.");
+      return true;
+    }
+
+    // 3. Get System Information
+    if (clean.includes('system info') || clean.includes('computer info') || clean.includes('cpu')) {
+      const psScript = `Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, MaxClockSpeed | Format-List`;
+      executePowerShell(psScript, "I have gathered your system information. Check the console for details.");
+      return true;
+    }
+
+    // 4. Take a Screenshot
+    if (clean.includes('screenshot') || clean.includes('take a screenshot')) {
+      const psScript = `
+        Add-Type -AssemblyName System.Windows.Forms
+        $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+        $bitmap = New-Object System.Drawing.Bitmap $screen.Width, $screen.Height
+        $graphic = [System.Drawing.Graphics]::FromImage($bitmap)
+        $graphic.CopyFromScreen($screen.Location, [System.Drawing.Point]::Empty, $screen.Size)
+        $bitmap.Save("$env:USERPROFILE\\Desktop\\screenshot.png")
+      `;
+      executePowerShell(psScript, "Screenshot taken and saved to your Desktop.");
+      return true;
+    }
+
+    // 5. Empty Recycle Bin
+    if (clean.includes('empty recycle bin') || clean.includes('clear recycle bin')) {
+      const psScript = `Clear-RecycleBin -Force`;
+      executePowerShell(psScript, "Recycle bin emptied.");
+      return true;
+    }
+    // --- NEW CUSTOM COMMANDS GO HERE ---
+    if (clean.includes('download chrome')) {
+        const psScript = `Invoke-WebRequest -Uri "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile "$env:USERPROFILE\\Downloads\\chrome_installer.exe"`;
+        executePowerShell(psScript, "Downloading Chrome installer to your Downloads folder.");
+        return true;
+    }
+    // --- END OF NEW CUSTOM COMMANDS ---
+
+    return false; // No complex task matched
+}
+
+  // --- MAIN COMMAND HANDLER ---
+  function handleCommand(raw) {
+    const clean = raw.toLowerCase().replace(/^(hey |ok |okay )?jarvis[, ]*/i, '').trim();
+    if (!clean) { speak("Yes sir, I'm listening."); return; }
+
+    // 1. Check for Complex Tasks first
+    if (handleComplexTask(clean)) return;
+
+    // 2. Camera Commands
+    if (clean.includes('take a photo') || clean.includes('take photo') || clean.includes('click a picture')) { takePhoto(); return; }
+    if (clean.includes('show camera') || clean.includes('open camera')) { startCamera(); return; }
+    if (clean.includes('close camera') || clean.includes('hide camera')) { stopCamera(); speak("Camera closed."); return; }
+
+    // 3. Basic App Commands
+    const basicApps = ['notepad', 'calculator', 'paint', 'file explorer', 'task manager', 
+        'control panel', 'settings', 'chrome', 'edge', 'command prompt', 'vs code', 
+        'spotify', 'snipping tool', 'lock', 'shutdown', 'shut down', 'restart', 'sleep', 
+        'cancel shutdown', 'volume up', 'volume down', 'mute', 'play music', 'next song'];
+
+    if (basicApps.some(app => clean.includes(app))) {
+      let cmd = clean;
+      if (clean.includes('lock')) cmd = 'lock computer';
+      else if (clean.includes('shutdown') || clean.includes('shut down')) cmd = 'shutdown';
+      else if (clean.includes('restart')) cmd = 'restart';
+      executeLaptopCommand(cmd); return;
+    }
+
+    // 4. Conversation
+    if (clean.includes('hello') || clean === 'hi') speak('Hello sir, how can I help you?');
+    else if (clean.includes('time')) speak('The time is ' + new Date().toLocaleTimeString());
+    else if (clean.includes('date')) speak('Today is ' + new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+    else if (clean.includes('who are you') || clean.includes('your name')) speak('I am Jarvis, your personal AI assistant.');
+    else if (clean.includes('what can you do') || clean.includes('help')) speak('I can open apps, control volume, organize your files, create projects, take screenshots, take photos, and much more.');
+    else if (clean.includes('open youtube')) { speak('Opening YouTube'); window.open('https://youtube.com', '_blank'); }
+    else if (clean.includes('open google')) { speak('Opening Google'); window.open('https://google.com', '_blank'); }
+    else if (clean.includes('search')) {
+      const q = clean.replace('search', '').trim();
+      if (q) { speak('Searching for ' + q); window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank'); }
+      else speak('What would you like me to search for?');
+    }
+    else if (clean.includes('stop') || clean.includes('sleep') || clean.includes('deactivate')) { speak('Going to sleep. Goodbye sir.'); deactivate(); }
+    else speak("I heard: " + clean + ". I'm not sure how to respond to that yet.");
+  }
+
+  recognition.onresult = (event) => {
+    if (isSpeaking) return;
+    const last = event.results.length - 1;
+    const transcript = event.results[last][0].transcript.trim();
+    transcriptEl.textContent = 'You: ' + transcript;
+    if (transcript.toLowerCase().includes('jarvis')) handleCommand(transcript);
+  };
+  recognition.onerror = (e) => console.warn('Speech error:', e.error);
+  recognition.onend = () => { if (listening) { try { recognition.start(); } catch (err) {} } };
+
+  function activate() {
+    listening = true; try { recognition.start(); } catch (err) {}
+    container.classList.add('listening');
+    micBtn.textContent = '⏹ Deactivate Jarvis'; statusEl.textContent = 'Listening… Say "Jarvis"';
+    speak('Jarvis activated');
+  }
+  function deactivate() {
+    listening = false; recognition.stop(); stopCamera();
+    container.classList.remove('listening'); micBtn.textContent = '🎤 Activate Jarvis';
+    statusEl.textContent = 'Click to activate'; transcriptEl.textContent = '';
+    container.classList.remove('speaking'); stopMouthAnimation();
+  }
+  // Auto-activate on page load
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        activate();
+    }, 500); // Wait half a second for the page to load, then start listening
+});
+</script>
+</body>
+</html>
