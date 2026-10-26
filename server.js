@@ -16,7 +16,7 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({ dest: 'uploads/' });
 
 const TEXT_MODEL = "openai/gpt-oss-120b"; 
-const VISION_MODEL = "openai/gpt-oss-120b";
+const VISION_MODEL = "qwen/qwen3.8-27b"; 
 
 // Helper to execute PowerShell
 function executePowerShell(script) {
@@ -130,7 +130,10 @@ app.post('/see-webcam', async (req, res) => {
             max_tokens: 100
         });
         res.json({ reply: completion.choices[0].message.content, emotion: "happy" });
-    } catch (error) { res.json({ reply: "I cannot see you right now, sir.", emotion: "sad" }); }
+    }      catch (error) { 
+        console.log("❌ WEBCAM ERROR:", error.message); // ADD THIS LINE
+        res.json({ reply: "I cannot see you right now, sir.", emotion: "sad" }); 
+    }
 });
 
 // File Analysis Endpoint

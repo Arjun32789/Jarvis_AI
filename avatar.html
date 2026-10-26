@@ -339,9 +339,10 @@
             const data = await res.json();
             isAnalyzing = false;
             speak(data.reply, data.emotion || "happy");
-        } catch (err) {
+                } catch (err) {
             console.error("Webcam error:", err);
             isAnalyzing = false;
+            alert("Camera Error: " + err.message); // THIS WILL SHOW A POPUP
             speak("I could not access the webcam, sir.", "sad");
             statusText.textContent = "SYSTEMS ONLINE.";
         }
